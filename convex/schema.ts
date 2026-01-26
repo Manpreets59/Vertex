@@ -1,16 +1,13 @@
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { serve } from "inngest/next";
 
-export default defineSchema({
-    projects: defineTable({
-        name: v.string(),
-        ownerId: v.string(),
-        importStatus: v.optional(
-            v.union(
-                v.literal("importing"),
-                v.literal("completed"),
-                v.literal("failed"),
-            ),
-        ),
-    }).index("by_owner", ["ownerId"]),
+import { inngest } from "@/inngest/client";
+import { demoError, demoGenerate } from "@/inngest/functions";
+
+// Create an API that serves zero functions
+export const { GET, POST, PUT } = serve({
+  client: inngest,
+  functions: [
+    demoGenerate,
+    demoError,
+  ],
 });
