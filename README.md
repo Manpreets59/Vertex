@@ -13,6 +13,9 @@ pnpm dev
 # or
 bun dev
 inngest cli running = npx --ignore-scripts=false inngest-cli@latest dev
+npm run dev
+npx convex dev
+npx inngest-cli@latest dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

@@ -22,7 +22,7 @@ import { ProjectsCommandDialog } from "./projects-command-dialog";
 const font = Poppins({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-})
+});
 
 export const ProjectsView = () => {
   const createProject = useCreateProject();
@@ -55,7 +55,7 @@ export const ProjectsView = () => {
           <div className="flex justify-between gap-4 w-full items-center">
 
             <div className="flex items-center gap-2 w-full group/logo">
-              <img src="/logo.svg" alt="Vertex" className="size-[32px] md:size-[46px]" />
+              <img src="/logo.svg" alt="Vertex" className="size-8 md:size-11" />
               <h1 className={cn(
                 "text-4xl md:text-5xl font-semibold",
                 font.className,
