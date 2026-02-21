@@ -79,3 +79,40 @@ export const useRenameProject = () => {
     }
   )
 };
+
+export const useUpdateProjectSettings = () => {
+  return useMutation(api.projects.updateSettings).withOptimisticUpdate(
+    (localStore, args) => {
+      const existingProject = localStore.getQuery(
+        api.projects.getById,
+        { id: args.id }
+      );
+
+      if (existingProject !== undefined && existingProject !== null) {
+        localStore.setQuery(
+          api.projects.getById,
+          { id: args.id },
+          {
+            ...existingProject,
+            settings: args.settings,
+            updatedAt: Date.now(),
+          }
+        );
+      }
+
+      const existingProjects = localStore.getQuery(api.projects.get);
+
+      if (existingProjects !== undefined) {
+        localStore.setQuery(
+          api.projects.get,
+          {},
+          existingProjects.map((project) => {
+            return project._id === args.id
+              ? { ...project, settings: args.settings, updatedAt: Date.now() }
+              : project
+          })
+        );
+      }
+    }
+  )
+};
