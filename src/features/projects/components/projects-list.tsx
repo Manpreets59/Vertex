@@ -1,13 +1,30 @@
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
 import { formatDistanceToNow } from "date-fns";
-import { AlertCircleIcon, ArrowRightIcon, GlobeIcon, Loader2Icon } from "lucide-react";
+import { AlertCircleIcon, ArrowRightIcon, GlobeIcon, Loader2Icon, MoreVerticalIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
 
-import { Doc } from "../../../../convex/_generated/dataModel";
+import { Doc, Id } from "../../../../convex/_generated/dataModel";
 
 import { useProjectsPartial } from "../hooks/use-projects";
 
@@ -73,24 +90,153 @@ const ContinueCard = ({
   )
 };
 
-const ProjectItem = ({ 
+const ProjectItem = ({
   data
 }: {
   data: Doc<"projects">;
 }) => {
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [newName, setNewName] = useState(data.name);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleRename = async () => {
+    if (!newName.trim()) {
+      toast.error("Project name cannot be empty");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/projects/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: data._id,
+          name: newName.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to rename project");
+      }
+
+      toast.success("Project renamed successfully");
+      setRenameOpen(false);
+    } catch (error) {
+      toast.error("Failed to rename project");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/projects/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: data._id }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete project");
+      }
+
+      toast.success("Project deleted successfully");
+      setDeleteOpen(false);
+    } catch (error) {
+      toast.error("Failed to delete project");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <Link 
-      href={`/projects/${data._id}`}
-      className="text-sm text-foreground/60 font-medium hover:text-foreground py-1 flex items-center justify-between w-full group"
-    >
-      <div className="flex items-center gap-2">
-        {getProjectIcon(data)}
-        <span className="truncate">{data.name}</span>
+    <>
+      <div className="flex items-center justify-between w-full group py-1 px-1 rounded hover:bg-accent/50">
+        <Link
+          href={`/projects/${data._id}`}
+          className="text-sm text-foreground/60 font-medium hover:text-foreground flex-1 flex items-center gap-2"
+        >
+          {getProjectIcon(data)}
+          <span className="truncate">{data.name}</span>
+        </Link>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground group-hover:text-foreground/60 transition-colors">
+            {formatTimestamp(data.updatedAt)}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <MoreVerticalIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setRenameOpen(true)}>
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setDeleteOpen(true)}
+                className="text-red-600"
+              >
+                <Trash2Icon className="size-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
-      <span className="text-xs text-muted-foreground group-hover:text-foreground/60 transition-colors">
-        {formatTimestamp(data.updatedAt)}
-      </span>
-    </Link>
+
+      {/* Rename Dialog */}
+      <AlertDialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Rename Project</AlertDialogTitle>
+          <AlertDialogDescription>
+            Enter a new name for this project
+          </AlertDialogDescription>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Project name"
+            autoFocus
+          />
+          <div className="flex justify-end gap-2 mt-4">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRename}
+              disabled={isLoading}
+            >
+              {isLoading ? "Renaming..." : "Rename"}
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Delete Project</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete "{data.name}"? This action cannot be undone.
+          </AlertDialogDescription>
+          <div className="flex justify-end gap-2 mt-4">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isLoading}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isLoading ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 

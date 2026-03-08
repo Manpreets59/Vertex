@@ -17,6 +17,7 @@ import { api } from "../../../../../convex/_generated/api";
 
 const requestSchema = z.object({
   prompt: z.string().min(1),
+  name: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const internalKey = process.env.POLARIS_CONVEX_INTERNAL_KEY;
+  const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
 
   if (!internalKey) {
     return NextResponse.json(
@@ -36,14 +37,16 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { prompt } = requestSchema.parse(body);
+  const { prompt, name } = requestSchema.parse(body);
 
-  // Generate a random project name
-  const projectName = uniqueNamesGenerator({
-    dictionaries: [adjectives, animals, colors],
-    separator: "-",
-    length: 3,
-  });
+  // Use custom name if provided, otherwise generate a random one
+  const projectName = name?.trim()
+    ? name.trim()
+    : uniqueNamesGenerator({
+        dictionaries: [adjectives, animals, colors],
+        separator: "-",
+        length: 3,
+      });
 
   // Create project and conversation together
   const { projectId, conversationId } = await convex.mutation(

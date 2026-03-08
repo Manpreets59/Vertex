@@ -64,7 +64,9 @@ export const EditorView = ({ projectId }: { projectId: Id<"projects"> }) => {
           />
         )}
         {isActiveFileBinary && (
-          <p>TODO: Implement binary preview</p>
+          <div className="h-full flex items-center justify-center text-muted-foreground">
+            <p>Binary file preview not available</p>
+          </div>
         )}
       </div>
     </div>

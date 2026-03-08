@@ -3,10 +3,10 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 const validateInternalKey = (key: string) => {
-  const internalKey = process.env.POLARIS_CONVEX_INTERNAL_KEY;
+  const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
 
   if (!internalKey) {
-    throw new Error("POLARIS_CONVEX_INTERNAL_KEY is not configured");
+    throw new Error("VERTEX_CONVEX_INTERNAL_KEY is not configured");
   }
 
   if (key !== internalKey) {
@@ -627,5 +627,75 @@ export const createProjectWithConversation = mutation({
     });
 
     return { projectId, conversationId };
+  },
+});
+
+export const updateProjectName = mutation({
+  args: {
+    internalKey: v.string(),
+    projectId: v.id("projects"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    await ctx.db.patch(args.projectId, {
+      name: args.name,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const deleteProject = mutation({
+  args: {
+    internalKey: v.string(),
+    projectId: v.id("projects"),
+  },
+  handler: async (ctx, args) => {
+    validateInternalKey(args.internalKey);
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    // Delete all files in the project
+    const files = await ctx.db
+      .query("files")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
+    for (const file of files) {
+      await ctx.db.delete(file._id);
+    }
+
+    // Delete all conversations and messages
+    const conversations = await ctx.db
+      .query("conversations")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
+    for (const conversation of conversations) {
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_conversation", (q) =>
+          q.eq("conversationId", conversation._id)
+        )
+        .collect();
+
+      for (const message of messages) {
+        await ctx.db.delete(message._id);
+      }
+
+      await ctx.db.delete(conversation._id);
+    }
+
+    // Delete the project
+    await ctx.db.delete(args.projectId);
   },
 });

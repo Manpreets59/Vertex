@@ -17,6 +17,7 @@ npm run dev
 npx convex dev
 npx inngest-cli@latest dev
 ```
+fix the preview issue and custom new project name
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 

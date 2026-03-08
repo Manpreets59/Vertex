@@ -65,7 +65,36 @@ export const useWebContainer = ({
 
   // Initial boot and mount
   useEffect(() => {
-    if (!enabled || !files || files.length === 0 || hasStartedRef.current) {
+    if (!enabled) {
+      hasStartedRef.current = false;
+      setStatus("idle");
+      setPreviewUrl(null);
+      setError(null);
+      return;
+    }
+
+    // Wait for files to be loaded
+    if (!files) {
+      console.warn("[WebContainer] Waiting for files to load...", {
+        projectId,
+        enabled,
+        hasStarted: hasStartedRef.current
+      });
+      return;
+    }
+
+    if (files.length === 0) {
+      console.warn("[WebContainer] No files available to mount", {
+        filesLength: files.length,
+        projectId,
+        hasStarted: hasStartedRef.current
+      });
+      setError("No files found in this project. Please ensure files have been imported.");
+      setStatus("error");
+      return;
+    }
+
+    if (hasStartedRef.current) {
       return;
     }
 
@@ -73,21 +102,30 @@ export const useWebContainer = ({
 
     const start = async () => {
       try {
+        console.log("[WebContainer] Starting WebContainer initialization...", { fileCount: files.length });
         setStatus("booting");
         setError(null);
         setTerminalOutput("");
 
         const appendOutput = (data: string) => {
+          console.log("[WebContainer Output]", data);
           setTerminalOutput((prev) => prev + data);
         };
 
+        console.log("[WebContainer] Booting WebContainer...");
         const container = await getWebContainer();
+        console.log("[WebContainer] Container booted successfully");
         containerRef.current = container;
 
+        console.log("[WebContainer] Building file tree...", { fileCount: files.length });
         const fileTree = buildFileTree(files);
+        console.log("[WebContainer] File tree built, mounting...", { treeRootKeys: Object.keys(fileTree) });
+
         await container.mount(fileTree);
+        console.log("[WebContainer] Files mounted successfully");
 
         container.on("server-ready", (_port, url) => {
+          console.log("[WebContainer] Server ready event fired", { url, port: _port });
           setPreviewUrl(url);
           setStatus("running");
         });
@@ -98,6 +136,8 @@ export const useWebContainer = ({
         const installCmd = settings?.installCommand || "npm install";
         const [installBin, ...installArgs] = installCmd.split(" ");
         appendOutput(`$ ${installCmd}\n`)
+        console.log("[WebContainer] Spawning install process", { bin: installBin, args: installArgs });
+
         const installProcess = await container.spawn(installBin, installArgs);
         installProcess.output.pipeTo(
           new WritableStream({
@@ -107,6 +147,7 @@ export const useWebContainer = ({
           })
         );
         const installExitCode = await installProcess.exit;
+        console.log("[WebContainer] Install process finished", { exitCode: installExitCode });
 
         if (installExitCode !== 0) {
           throw new Error(
@@ -118,6 +159,8 @@ export const useWebContainer = ({
         const devCmd = settings?.devCommand || "npm run dev";
         const [devBin, ...devArgs] = devCmd.split(" ");
         appendOutput(`\n$ ${devCmd}\n`);
+        console.log("[WebContainer] Spawning dev process", { bin: devBin, args: devArgs });
+
         const devProcess = await container.spawn(devBin, devArgs);
         devProcess.output.pipeTo(
           new WritableStream({
@@ -127,7 +170,9 @@ export const useWebContainer = ({
           })
         );
       } catch (error) {
-        setError(error instanceof Error ? error.message : "Unknown error");
+        console.error("[WebContainer] Error during initialization", error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        setError(errorMessage);
         setStatus("error");
       }
     };
@@ -136,6 +181,7 @@ export const useWebContainer = ({
   }, [
     enabled,
     files,
+    projectId,
     restartKey,
     settings?.devCommand,
     settings?.installCommand,

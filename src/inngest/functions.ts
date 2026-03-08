@@ -1,7 +1,6 @@
 import { inngest } from "./client";
 import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
-import { promise } from "zod/v4";
 import { firecrawl } from "@/lib/firecrawl";
 
 const URL_REGEX = /https?:\/\/[^\s]+/g;
