@@ -13,41 +13,50 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { userId } = await auth();
+  try {
+    const { userId } = await auth();
 
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const body = await request.json();
-  const { projectId } = requestSchema.parse(body);
+    const body = await request.json();
+    const { projectId } = requestSchema.parse(body);
 
-  const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
+    const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
 
-  if (!internalKey) {
+    if (!internalKey) {
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
+    }
+
+    const event = await inngest.send({
+      name: "github/export.cancel",
+      data: {
+        projectId,
+      },
+    });
+
+    // Update status to cancelled
+    await convex.mutation(api.system.updateExportStatus, {
+      internalKey,
+      projectId: projectId as Id<"projects">,
+      status: "cancelled",
+    });
+
+    return NextResponse.json({
+      success: true,
+      projectId,
+      eventId: event.ids[0]
+    });
+  } catch (error) {
+    console.error("[GitHub Export Cancel API] Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return NextResponse.json(
-      { error: "Server configuration error" },
+      { error: `Failed to cancel export: ${errorMessage}` },
       { status: 500 }
     );
   }
-
-  const event = await inngest.send({
-    name: "github/export.cancel",
-    data: {
-      projectId,
-    },
-  });
-
-  // Update status to cancelled
-  await convex.mutation(api.system.updateExportStatus, {
-    internalKey,
-    projectId: projectId as Id<"projects">,
-    status: "cancelled",
-  });
-
-  return NextResponse.json({ 
-    success: true, 
-    projectId, 
-    eventId: event.ids[0]
-  });
 };

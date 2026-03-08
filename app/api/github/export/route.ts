@@ -14,50 +14,59 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const { userId } = await auth();
+  try {
+    const { userId } = await auth();
 
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const body = await request.json();
-  const { projectId, repoName, visibility, description } = requestSchema.parse(body);
+    const body = await request.json();
+    const { projectId, repoName, visibility, description } = requestSchema.parse(body);
 
-  const client = await clerkClient();
-  const tokens = await client.users.getUserOauthAccessToken(userId, "github");
-  const githubToken = tokens.data[0]?.token;
+    const client = await clerkClient();
+    const tokens = await client.users.getUserOauthAccessToken(userId, "github");
+    const githubToken = tokens.data[0]?.token;
 
-  if (!githubToken) {
+    if (!githubToken) {
+      return NextResponse.json(
+        { error: "GitHub not connected. Please reconnect your GitHub account." },
+        { status: 400 }
+      );
+    }
+
+    const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
+
+    if (!internalKey) {
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
+    }
+
+    const event = await inngest.send({
+      name: "github/export.repo",
+      data: {
+        projectId,
+        repoName,
+        visibility,
+        description,
+        githubToken,
+        internalKey,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      projectId,
+      eventId: event.ids[0]
+    });
+  } catch (error) {
+    console.error("[GitHub Export API] Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return NextResponse.json(
-      { error: "GitHub not connected. Please reconnect your GitHub account." },
-      { status: 400 }
-    );
-  }
-
-  const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
-
-  if (!internalKey) {
-    return NextResponse.json(
-      { error: "Server configuration error" },
+      { error: `Failed to export to GitHub: ${errorMessage}` },
       { status: 500 }
     );
   }
-
-  const event = await inngest.send({
-    name: "github/export.repo",
-    data: {
-      projectId,
-      repoName,
-      visibility,
-      description,
-      githubToken,
-      internalKey,
-    },
-  });
-
-  return NextResponse.json({ 
-    success: true, 
-    projectId, 
-    eventId: event.ids[0]
-  });
 };
