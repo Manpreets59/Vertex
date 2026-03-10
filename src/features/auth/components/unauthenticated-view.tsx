@@ -1,38 +1,32 @@
-import { ShieldAlertIcon } from "lucide-react";
-
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item";
 import { SignInButton } from "@clerk/nextjs";
-import { Button } from "@/components/ui/button";
 
 export const UnauthenticatedView = () => {
   return (
-    <div className="flex items-center justify-center h-screen bg-background">
-      <div className="w-full max-w-lg bg-muted">
-        <Item variant="outline">
-          <ItemMedia variant="icon">
-            <ShieldAlertIcon />
-          </ItemMedia>
-          <ItemContent>
-            <ItemTitle>Unauthorized Access</ItemTitle>
-            <ItemDescription>
-              You are not authorized to access this resource.
-            </ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <SignInButton>
-              <Button variant="outline" size="sm">
-                Sign in
-              </Button>
-            </SignInButton>
-          </ItemActions>
-        </Item>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#1a1a2e' }}>
+      <div style={{ width: '100%', maxWidth: '500px', padding: '30px', backgroundColor: '#16213e', borderRadius: '8px', textAlign: 'center' }}>
+        <div style={{ marginBottom: '20px', color: '#0f3460', fontSize: '48px' }}>
+          🔒
+        </div>
+        <h1 style={{ color: '#e94560', fontSize: '24px', marginBottom: '10px', fontWeight: 'bold' }}>
+          Unauthorized Access
+        </h1>
+        <p style={{ color: '#ccc', fontSize: '14px', marginBottom: '30px' }}>
+          You are not authorized to access this resource. Please sign in to continue.
+        </p>
+        <SignInButton>
+          <button style={{
+            backgroundColor: '#0f3460',
+            color: '#e94560',
+            border: '2px solid #e94560',
+            padding: '10px 20px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}>
+            Sign In
+          </button>
+        </SignInButton>
       </div>
     </div>
   );

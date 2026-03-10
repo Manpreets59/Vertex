@@ -2,8 +2,11 @@ import { Spinner } from "@/components/ui/spinner";
 
 export const AuthLoadingView = () => {
   return (
-    <div className="flex items-center justify-center h-screen bg-background">
-      <Spinner className="size-6 text-ring" />
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#1a1a2e' }}>
+      <div style={{ textAlign: 'center' }}>
+        <Spinner className="size-6 text-ring" />
+        <p style={{ color: '#ccc', marginTop: '16px', fontSize: '14px' }}>Loading...</p>
+      </div>
     </div>
   );
 };

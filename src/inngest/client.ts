@@ -2,6 +2,7 @@ import { Inngest } from "inngest";
 import { sentryMiddleware } from "@inngest/middleware-sentry";
 
 // Create a client to send and receive events
-export const inngest = new Inngest({ id: "vertex",
-    middleware: [sentryMiddleware()],
- });
+export const inngest = new Inngest({ 
+  id: "Vertex",
+  middleware: [sentryMiddleware()],
+});

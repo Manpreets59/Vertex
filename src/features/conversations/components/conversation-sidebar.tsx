@@ -122,21 +122,8 @@ export const ConversationSidebar = ({
           message: message.text,
         },
       });
-    } catch (error) {
-      let errorMsg = "Message failed to send";
-
-      if (error instanceof Error) {
-        errorMsg = error.message;
-      } else if (typeof error === 'object' && error !== null && 'response' in error) {
-        const response = error as any;
-        if (response.response?.status) {
-          errorMsg = `Error: ${response.response.status} - Check browser console for details`;
-        }
-      }
-
-      console.error("Message submit error:", error);
-      toast.error(errorMsg);
-      return;
+    } catch {
+      toast.error("Message failed to send");
     }
 
     setInput("");

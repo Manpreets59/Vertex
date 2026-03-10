@@ -12,10 +12,10 @@ yarn dev
 pnpm dev
 # or
 bun dev
-inngest cli running = npx --ignore-scripts=false inngest-cli@latest dev
+inngest cli running = npx --ignore-scripts=false 
+npx inngest-cli@latest dev
 npm run dev
 npx convex dev
-npx inngest-cli@latest dev
 ```
 fix the preview issue and custom new project name
 

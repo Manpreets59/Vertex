@@ -21,9 +21,9 @@ import type { ComponentProps } from "react";
 import { createContext, useContext } from "react";
 import { Shimmer } from "./shimmer";
 
-interface PlanContextValue {
+type PlanContextValue = {
   isStreaming: boolean;
-}
+};
 
 const PlanContext = createContext<PlanContextValue | null>(null);
 

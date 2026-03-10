@@ -95,7 +95,7 @@ export const Navbar = ({
                         font.className,
                       )}
                     >
-                      vertex
+                      Vertex
                     </span>
                   </Link>
                 </Button>

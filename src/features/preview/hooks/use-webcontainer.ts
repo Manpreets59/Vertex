@@ -4,8 +4,8 @@ import { WebContainer } from "@webcontainer/api";
 import { 
   buildFileTree,
   getFilePath
-} from "../utils/file-tree";
-import { useFolderContents } from "@/features/projects/hooks/use-files";
+} from "@/features/preview/utils/file-tree";
+import { useFiles } from "@/features/projects/hooks/use-files";
 
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -61,40 +61,11 @@ export const useWebContainer = ({
   const hasStartedRef = useRef(false);
 
   // Fetch files from Convex (auto-updates on changes)
-  const files = useFolderContents({ projectId });
+  const files = useFiles(projectId);
 
   // Initial boot and mount
   useEffect(() => {
-    if (!enabled) {
-      hasStartedRef.current = false;
-      setStatus("idle");
-      setPreviewUrl(null);
-      setError(null);
-      return;
-    }
-
-    // Wait for files to be loaded
-    if (!files) {
-      console.warn("[WebContainer] Waiting for files to load...", {
-        projectId,
-        enabled,
-        hasStarted: hasStartedRef.current
-      });
-      return;
-    }
-
-    if (files.length === 0) {
-      console.warn("[WebContainer] No files available to mount", {
-        filesLength: files.length,
-        projectId,
-        hasStarted: hasStartedRef.current
-      });
-      setError("No files found in this project. Please ensure files have been imported.");
-      setStatus("error");
-      return;
-    }
-
-    if (hasStartedRef.current) {
+    if (!enabled || !files || files.length === 0 || hasStartedRef.current) {
       return;
     }
 
@@ -102,46 +73,23 @@ export const useWebContainer = ({
 
     const start = async () => {
       try {
-        console.log("[WebContainer] Starting WebContainer initialization...", { fileCount: files.length });
         setStatus("booting");
         setError(null);
         setTerminalOutput("");
 
         const appendOutput = (data: string) => {
-          console.log("[WebContainer Output]", data);
           setTerminalOutput((prev) => prev + data);
         };
 
-        console.log("[WebContainer] Booting WebContainer...");
         const container = await getWebContainer();
-        console.log("[WebContainer] Container booted successfully");
         containerRef.current = container;
 
-        console.log("[WebContainer] Building file tree...", { fileCount: files.length });
         const fileTree = buildFileTree(files);
-        console.log("[WebContainer] File tree built, mounting...", { treeRootKeys: Object.keys(fileTree) });
-
         await container.mount(fileTree);
-        console.log("[WebContainer] Files mounted successfully");
 
-        // Set up a timeout for server-ready event (60 seconds)
-        let serverReadyTimeout: NodeJS.Timeout | null = null;
-        const serverReadyPromise = new Promise<void>((resolve) => {
-          serverReadyTimeout = setTimeout(() => {
-            console.warn("[WebContainer] Server ready timeout - dev server may not be responding");
-            appendOutput(
-              "\n⚠️ Server startup timeout. The dev server may be taking a long time to start.\n" +
-              "Check the terminal output above for any errors. You can try restarting the preview.\n"
-            );
-          }, 60000);
-
-          container.on("server-ready", (_port, url) => {
-            if (serverReadyTimeout) clearTimeout(serverReadyTimeout);
-            console.log("[WebContainer] Server ready event fired", { url, port: _port });
-            setPreviewUrl(url);
-            setStatus("running");
-            resolve();
-          });
+        container.on("server-ready", (_port, url) => {
+          setPreviewUrl(url);
+          setStatus("running");
         });
 
         setStatus("installing");
@@ -150,25 +98,19 @@ export const useWebContainer = ({
         const installCmd = settings?.installCommand || "npm install";
         const [installBin, ...installArgs] = installCmd.split(" ");
         appendOutput(`$ ${installCmd}\n`)
-        console.log("[WebContainer] Spawning install process", { bin: installBin, args: installArgs });
-
         const installProcess = await container.spawn(installBin, installArgs);
-        let installOutput = "";
         installProcess.output.pipeTo(
           new WritableStream({
             write(data) {
-              installOutput += data;
               appendOutput(data);
             },
           })
         );
         const installExitCode = await installProcess.exit;
-        console.log("[WebContainer] Install process finished", { exitCode: installExitCode });
 
         if (installExitCode !== 0) {
-          console.error("[WebContainer] Install failed with output:", installOutput);
           throw new Error(
-            `${installCmd} failed with code ${installExitCode}. Check terminal for details.`
+            `${installCmd} failed with code ${installExitCode}`
           );
         }
 
@@ -176,39 +118,16 @@ export const useWebContainer = ({
         const devCmd = settings?.devCommand || "npm run dev";
         const [devBin, ...devArgs] = devCmd.split(" ");
         appendOutput(`\n$ ${devCmd}\n`);
-        console.log("[WebContainer] Spawning dev process", { bin: devBin, args: devArgs });
-
         const devProcess = await container.spawn(devBin, devArgs);
-        let devOutput = "";
-
         devProcess.output.pipeTo(
           new WritableStream({
             write(data) {
-              devOutput += data;
               appendOutput(data);
             },
           })
         );
-
-        // Wait for server to be ready OR dev process to exit
-        const devExitPromise = devProcess.exit.then((code) => {
-          console.error("[WebContainer] Dev process exited with code:", code);
-          if (code !== 0) {
-            throw new Error(
-              `Dev server exited unexpectedly with code ${code}. Check terminal output.`
-            );
-          }
-        });
-
-        // Race: either server becomes ready or dev process exits
-        await Promise.race([serverReadyPromise, devExitPromise]).catch((error) => {
-          if (serverReadyTimeout) clearTimeout(serverReadyTimeout);
-          throw error;
-        });
       } catch (error) {
-        console.error("[WebContainer] Error during initialization", error);
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        setError(errorMessage);
+        setError(error instanceof Error ? error.message : "Unknown error");
         setStatus("error");
       }
     };
@@ -217,7 +136,6 @@ export const useWebContainer = ({
   }, [
     enabled,
     files,
-    projectId,
     restartKey,
     settings?.devCommand,
     settings?.installCommand,

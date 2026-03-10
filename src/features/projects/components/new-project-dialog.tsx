@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 
 import {
   PromptInput,
@@ -36,7 +35,6 @@ export const NewProjectDialog = ({
   onOpenChange,
 }: NewProjectDialogProps) => {
   const router = useRouter();
-  const [projectName, setProjectName] = useState("");
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -48,17 +46,13 @@ export const NewProjectDialog = ({
     try {
       const { projectId } = await ky
         .post("/api/projects/create-with-prompt", {
-          json: {
-            prompt: message.text.trim(),
-            name: projectName.trim(),
-          },
+          json: { prompt: message.text.trim() },
         })
         .json<{ projectId: Id<"projects"> }>();
 
       toast.success("Project created");
       onOpenChange(false);
       setInput("");
-      setProjectName("");
       router.push(`/projects/${projectId}`);
     } catch {
       toast.error("Unable to create project");
@@ -69,7 +63,7 @@ export const NewProjectDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
+      <DialogContent 
         showCloseButton={false}
         className="sm:max-w-lg p-0"
       >
@@ -79,33 +73,20 @@ export const NewProjectDialog = ({
             Describe your project and AI will help you create it.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4 p-6">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Project Name (optional)
-            </label>
-            <Input
-              placeholder="My Project"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+        <PromptInput onSubmit={handleSubmit} className="border-none!">
+          <PromptInputBody>
+            <PromptInputTextarea
+              placeholder="Ask Vertex to build..."
+              onChange={(e) => setInput(e.target.value)}
+              value={input}
               disabled={isSubmitting}
             />
-          </div>
-          <PromptInput onSubmit={handleSubmit} className="border-none!">
-            <PromptInputBody>
-              <PromptInputTextarea
-                placeholder="Ask Vertex to build..."
-                onChange={(e) => setInput(e.target.value)}
-                value={input}
-                disabled={isSubmitting}
-              />
-            </PromptInputBody>
-            <PromptInputFooter>
-               <PromptInputTools />
-               <PromptInputSubmit disabled={!input || isSubmitting} />
-            </PromptInputFooter>
-          </PromptInput>
-        </div>
+          </PromptInputBody>
+          <PromptInputFooter>
+             <PromptInputTools />
+             <PromptInputSubmit disabled={!input || isSubmitting} />
+          </PromptInputFooter>
+        </PromptInput>
       </DialogContent>
     </Dialog>
   );
