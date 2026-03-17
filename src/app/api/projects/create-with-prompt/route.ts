@@ -38,8 +38,8 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { prompt } = requestSchema.parse(body);
 
-  // Generate a random project name
-  const projectName = uniqueNamesGenerator({
+  // Use the first 50 characters of the prompt as project name, or generate random if empty
+  const projectName = prompt.trim().slice(0, 50) || uniqueNamesGenerator({
     dictionaries: [adjectives, animals, colors],
     separator: "-",
     length: 3,

@@ -36,8 +36,9 @@ export const buildFileTree = (files: FileDoc[]): FileSystemTree => {
       if (isLast) {
         if (file.type === "folder") {
           current[part] = { directory: {} };
-        } else if (!file.storageId && file.content !== undefined) {
-          current[part] = { file: { contents: file.content } };
+        } else if (!file.storageId) {
+          // Include all text files, using empty string if content is missing
+          current[part] = { file: { contents: file.content ?? "" } };
         }
       } else {
         if (!current[part]) {

@@ -5,8 +5,8 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { NonRetriableError } from "inngest";
 import { convex } from "@/lib/convex-client";
 import { api } from "../../../../convex/_generated/api";
-import { 
-  CODING_AGENT_SYSTEM_PROMPT, 
+import {
+  CODING_AGENT_SYSTEM_PROMPT,
   TITLE_GENERATOR_SYSTEM_PROMPT
 } from "./constants";
 import { DEFAULT_CONVERSATION_TITLE } from "../constants";
@@ -118,7 +118,7 @@ export const processMessage = inngest.createFunction(
         name: "title-generator",
         system: TITLE_GENERATOR_SYSTEM_PROMPT,
         model: anthropic({
-          model: "claude-3-5-haiku-20241022",
+          model: "claude-sonnet-4-20250514",
           defaultParameters: { temperature: 0, max_tokens: 50 },
         }),
        });
@@ -156,7 +156,7 @@ export const processMessage = inngest.createFunction(
       description: "An expert AI coding assistant",
       system: systemPrompt,
        model: anthropic({
-        model: "claude-opus-4-20250514",
+        model: "claude-sonnet-4-20250514",
         defaultParameters: { temperature: 0.3, max_tokens: 16000 }
        }),
        tools: [

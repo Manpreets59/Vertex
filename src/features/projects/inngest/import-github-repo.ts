@@ -123,6 +123,10 @@ export const importGithubRepo = inngest.createFunction(
     );
 
     await step.run("create-files", async () => {
+      let successCount = 0;
+      let failureCount = 0;
+      const failedFiles: string[] = [];
+
       for (const file of allFiles) {
         if (!file.path || !file.sha) {
           continue;
@@ -174,9 +178,20 @@ export const importGithubRepo = inngest.createFunction(
               parentId,
             });
           }
-        } catch {
-          console.error(`Failed to import file: ${file.path}`);
+
+          successCount++;
+        } catch (error) {
+          failureCount++;
+          if (failedFiles.length < 10) {
+            failedFiles.push(file.path);
+          }
+          console.error(`Failed to import file: ${file.path}`, error);
         }
+      }
+
+      console.log(`File import complete: ${successCount} succeeded, ${failureCount} failed`);
+      if (failedFiles.length > 0) {
+        console.log(`Failed files (first 10): ${failedFiles.join(", ")}`);
       }
     });
 
