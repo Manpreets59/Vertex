@@ -1,10 +1,9 @@
-import { createAgent, anthropic, createNetwork } from '@inngest/agent-kit';
-
 import { inngest } from "@/inngest/client";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { NonRetriableError } from "inngest";
 import { convex } from "@/lib/convex-client";
 import { api } from "../../../../convex/_generated/api";
+import { createGeminiMessage } from "@/lib/gemini-client";
 import {
   CODING_AGENT_SYSTEM_PROMPT,
   TITLE_GENERATOR_SYSTEM_PROMPT
@@ -56,14 +55,14 @@ export const processMessage = inngest.createFunction(
     event: "message/sent",
   },
   async ({ event, step }) => {
-    const { 
-      messageId, 
+    const {
+      messageId,
       conversationId,
       projectId,
       message
     } = event.data as MessageEvent;
 
-    const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY; 
+    const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
 
     if (!internalKey) {
       throw new NonRetriableError("VERTEX_CONVEX_INTERNAL_KEY is not configured");
@@ -114,103 +113,51 @@ export const processMessage = inngest.createFunction(
       conversation.title === DEFAULT_CONVERSATION_TITLE;
 
     if (shouldGenerateTitle) {
-       const titleAgent = createAgent({
-        name: "title-generator",
-        system: TITLE_GENERATOR_SYSTEM_PROMPT,
-        model: anthropic({
-          model: "claude-sonnet-4-20250514",
-          defaultParameters: { temperature: 0, max_tokens: 50 },
-        }),
-       });
+      try {
+        const title = await createGeminiMessage({
+          max_tokens: 50,
+          system: TITLE_GENERATOR_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: message,
+            },
+          ],
+        });
 
-       const { output } = await titleAgent.run(message, { step });
-
-       const textMessage = output.find(
-        (m) => m.type === "text" && m.role === "assistant"
-      );
-
-      if (textMessage?.type === "text") {
-         const title = 
-          typeof textMessage.content === "string"
-            ? textMessage.content.trim()
-            : textMessage.content
-              .map((c) => c.text)
-              .join("")
-              .trim();
-
-        if (title) {
+        if (title.trim()) {
           await step.run("update-conversation-title", async () => {
             await convex.mutation(api.system.updateConversationTitle, {
               internalKey,
               conversationId,
-              title,
+              title: title.trim(),
             });
           });
         }
+      } catch (error) {
+        console.error("Error generating title:", error);
+        // Continue even if title generation fails
       }
     }
 
-    // Create the coding agent with file tools
-    const codingAgent = createAgent({
-      name: "Vertex",
-      description: "An expert AI coding assistant",
-      system: systemPrompt,
-       model: anthropic({
-        model: "claude-sonnet-4-20250514",
-        defaultParameters: { temperature: 0.3, max_tokens: 16000 }
-       }),
-       tools: [
-        createListFilesTool({ internalKey, projectId }),
-        createReadFilesTool({ internalKey }),
-        createUpdateFileTool({ internalKey }),
-        createCreateFilesTool({ projectId, internalKey }),
-        createCreateFolderTool({ projectId, internalKey }),
-        createRenameFileTool({ internalKey }),
-        createDeleteFilesTool({ internalKey }),
-        createScrapeUrlsTool(),
-       ],
-    });
+    // Generate response using Claude
+    let assistantResponse = "I processed your request. Let me know if you need anything else!";
 
-    // Create network with single agent
-    const network = createNetwork({
-      name: "Vertex-network",
-      agents: [codingAgent],
-      maxIter: 20,
-      router: ({ network }) => {
-        const lastResult = network.state.results.at(-1);
-        const hasTextResponse = lastResult?.output.some(
-          (m) => m.type === "text" && m.role === "assistant"
-        );
-        const hasToolCalls = lastResult?.output.some(
-          (m) => m.type === "tool_call"
-        );
-
-        // Anthropic outputs text AND tool calls together
-        // Only stop if there's text WITHOUT tool calls (final response)
-        if (hasTextResponse && !hasToolCalls) {
-          return undefined;
-        }
-        return codingAgent;
-      }
-    });
-
-    // Run the agent
-    const result = await network.run(message);
-
-    // Extract the assistant's text response from the last agent result
-    const lastResult = result.state.results.at(-1);
-    const textMessage = lastResult?.output.find(
-      (m) => m.type === "text" && m.role === "assistant"
-    );
-
-    let assistantResponse =
-      "I processed your request. Let me know if you need anything else!";
-
-    if (textMessage?.type === "text") {
-      assistantResponse =
-        typeof textMessage.content === "string"
-          ? textMessage.content
-          : textMessage.content.map((c) => c.text).join("");
+    try {
+      assistantResponse = await createGeminiMessage({
+        max_tokens: 1300,
+        temperature: 0.3,
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+      });
+    } catch (error) {
+      console.error("Error calling Claude:", error);
+      throw error;
     }
 
     // Update the assistant message with the response (this also sets status to completed)

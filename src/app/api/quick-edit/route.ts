@@ -1,18 +1,8 @@
-import { z } from "zod";
-import { generateText, Output } from "ai";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createGeminiMessage } from "@/lib/gemini-client";
 
 import { firecrawl } from "@/lib/firecrawl";
-
-const quickEditSchema = z.object({
-  editedCode: z
-    .string()
-    .describe(
-      "The edited version of the selected code based on the instruction"
-    ),
-});
 
 const URL_REGEX = /https?:\/\/[^\s)>\]]+/g;
 
@@ -101,13 +91,17 @@ export async function POST(request: Request) {
       .replace("{instruction}", instruction)
       .replace("{documentation}", documentationContext);
 
-    const { output } = await generateText({
-      model: anthropic("claude-3-7-sonnet-20250219"),
-      output: Output.object({ schema: quickEditSchema }),
-      prompt,
+    const editedCode = await createGeminiMessage({
+      max_tokens: 1000,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
     });
 
-    return NextResponse.json({ editedCode: output.editedCode });
+    return NextResponse.json({ editedCode });
   } catch (error) {
     console.error("Edit error:", error);
     return NextResponse.json(

@@ -1,17 +1,6 @@
-import { generateText, Output } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { anthropic } from "@ai-sdk/anthropic";
-// import { google } from "@ai-sdk/google";
-
-const suggestionSchema = z.object({
-  suggestion: z
-    .string()
-    .describe(
-      "The code to insert at cursor, or empty string if no completion needed"
-    ),
-});
+import { createGeminiMessage } from "@/lib/gemini-client";
 
 const SUGGESTION_PROMPT = `You are a code suggestion assistant.
 
@@ -82,13 +71,17 @@ export async function POST(request: Request) {
       .replace("{nextLines}", nextLines || "")
       .replace("{lineNumber}", lineNumber.toString());
 
-    const { output } = await generateText({
-      model: anthropic("claude-3-7-sonnet-20250219"),
-      output: Output.object({ schema: suggestionSchema }),
-      prompt,
+    const suggestion = await createGeminiMessage({
+      max_tokens: 100,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
     });
 
-    return NextResponse.json({ suggestion: output.suggestion })
+    return NextResponse.json({ suggestion })
   } catch (error) {
     console.error("Suggestion error: ", error);
     return NextResponse.json(
