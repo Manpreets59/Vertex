@@ -28,6 +28,8 @@ interface MessageEvent {
 export const processMessage = inngest.createFunction(
   {
     id: "process-message",
+    // v4: trigger moves inside the first argument
+    triggers: [{ event: "message/sent" }],
     cancelOn: [
       {
         event: "message/cancel",
@@ -38,7 +40,6 @@ export const processMessage = inngest.createFunction(
       const { messageId } = event.data.event.data as MessageEvent;
       const internalKey = process.env.VERTEX_CONVEX_INTERNAL_KEY;
 
-      // Update the message with error content
       if (internalKey) {
         await step.run("update-message-on-failure", async () => {
           await convex.mutation(api.system.updateMessageContent, {
@@ -50,9 +51,6 @@ export const processMessage = inngest.createFunction(
         });
       }
     }
-  },
-  {
-    event: "message/sent",
   },
   async ({ event, step }) => {
     const {
@@ -68,10 +66,8 @@ export const processMessage = inngest.createFunction(
       throw new NonRetriableError("VERTEX_CONVEX_INTERNAL_KEY is not configured");
     }
 
-    // TODO: Check if this is needed
     await step.sleep("wait-for-db-sync", "1s");
 
-    // Get conversation for title generation check
     const conversation = await step.run("get-conversation", async () => {
       return await convex.query(api.system.getConversationById, {
         internalKey,
@@ -83,7 +79,6 @@ export const processMessage = inngest.createFunction(
       throw new NonRetriableError("Conversation not found");
     }
 
-    // Fetch recent messages for conversation context
     const recentMessages = await step.run("get-recent-messages", async () => {
       return await convex.query(api.system.getRecentMessages, {
         internalKey,
@@ -92,10 +87,8 @@ export const processMessage = inngest.createFunction(
       });
     });
 
-    // Build system prompt with conversation history (exclude the current processing message)
     let systemPrompt = CODING_AGENT_SYSTEM_PROMPT;
 
-    // Filter out the current processing message and empty messages
     const contextMessages = recentMessages.filter(
       (msg) => msg._id !== messageId && msg.content.trim() !== ""
     );
@@ -108,68 +101,47 @@ export const processMessage = inngest.createFunction(
       systemPrompt += `\n\n## Previous Conversation (for context only - do NOT repeat these responses):\n${historyText}\n\n## Current Request:\nRespond ONLY to the user's new message below. Do not repeat or reference your previous responses.`;
     }
 
-    // Generate conversation title if it's still the default
-    const shouldGenerateTitle =
-      conversation.title === DEFAULT_CONVERSATION_TITLE;
+    const shouldGenerateTitle = conversation.title === DEFAULT_CONVERSATION_TITLE;
 
     if (shouldGenerateTitle) {
-      try {
-        const title = await createGeminiMessage({
-          max_tokens: 50,
-          system: TITLE_GENERATOR_SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: message,
-            },
-          ],
-        });
+      await step.run("generate-and-update-title", async () => {
+        try {
+          const title = await createGeminiMessage({
+            max_tokens: 50,
+            system: TITLE_GENERATOR_SYSTEM_PROMPT,
+            messages: [{ role: "user", content: message }],
+          });
 
-        if (title.trim()) {
-          await step.run("update-conversation-title", async () => {
+          if (title.trim()) {
             await convex.mutation(api.system.updateConversationTitle, {
               internalKey,
               conversationId,
               title: title.trim(),
             });
-          });
+          }
+        } catch (error) {
+          console.error("Error generating title:", error);
         }
-      } catch (error) {
-        console.error("Error generating title:", error);
-        // Continue even if title generation fails
-      }
+      });
     }
 
-    // Generate response using Claude
-    let assistantResponse = "I processed your request. Let me know if you need anything else!";
-
-    try {
-      assistantResponse = await createGeminiMessage({
+    const assistantResponse = await step.run("generate-ai-response", async () => {
+      return await createGeminiMessage({
         max_tokens: 1300,
         temperature: 0.3,
         system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: message,
-          },
-        ],
+        messages: [{ role: "user", content: message }],
       });
-    } catch (error) {
-      console.error("Error calling Claude:", error);
-      throw error;
-    }
+    });
 
-    // Update the assistant message with the response (this also sets status to completed)
     await step.run("update-assistant-message", async () => {
       await convex.mutation(api.system.updateMessageContent, {
         internalKey,
         messageId,
         content: assistantResponse,
-      })
+      });
     });
 
     return { success: true, messageId, conversationId };
   }
 );
-

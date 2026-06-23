@@ -1,41 +1,175 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
+  <img src="public/logo.svg" alt="Vertex Logo" width="64" height="64" />
+  <h1>Vertex</h1>
+  <p>A cloud-based IDE with an integrated AI coding assistant powered by Google Gemini.</p>
+
+  ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
+  ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript)
+  ![Convex](https://img.shields.io/badge/Convex-1.4-orange?style=flat-square)
+  ![Inngest](https://img.shields.io/badge/Inngest-4-purple?style=flat-square)
+</div>
+
+---
+
+## Overview
+
+Vertex is a browser-based code editor that lets you write, edit, and preview projects entirely in the cloud. An AI assistant (powered by Google Gemini) is embedded directly into the IDE — you can ask it to create files, refactor code, explain logic, or scaffold entire projects from a single prompt.
+
+Projects can be imported from GitHub and exported back as repositories with a single click.
+
+## Features
+
+- **AI Coding Assistant** — Gemini-powered agent that reads, creates, updates, and organises your files
+- **Cloud IDE** — Full code editor (CodeMirror 6) with syntax highlighting, minimap, and tab management
+- **Live Preview** — Runs your project in a WebContainer sandbox directly in the browser
+- **GitHub Integration** — Import any public or private repository; export projects as new repos
+- **Real-time Sync** — File changes persist instantly via Convex's reactive database
+- **AI Autocomplete** — Ghost-text inline suggestions as you type
+- **Quick Edit** — Select any code, press `⌘K`, describe a change — AI applies it in place
+- **Background Jobs** — Long-running tasks (imports, exports, AI responses) handled by Inngest
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Database | Convex |
+| Background Jobs | Inngest |
+| AI | Google Gemini 1.5 Flash |
+| Auth | Clerk |
+| Editor | CodeMirror 6 |
+| Preview Sandbox | WebContainer API |
+| Web Scraping | Firecrawl |
+| Error Tracking | Sentry |
+| Styling | Tailwind CSS v4 + shadcn/ui |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- A [Convex](https://convex.dev) account
+- A [Clerk](https://clerk.com) account with GitHub OAuth enabled
+- A [Google AI Studio](https://aistudio.google.com) API key
+- An [Inngest](https://inngest.com) account (free tier)
+- A [Firecrawl](https://firecrawl.dev) API key (optional — used for URL scraping in Quick Edit)
+
+### Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-inngest cli running = npx --ignore-scripts=false 
-npx inngest-cli@latest dev
-npm run dev
+git clone https://github.com/Manpreets59/Vertex.git
+cd Vertex
+npm install
+```
+
+### Environment Variables
+
+Create a `.env.local` file in the root directory:
+
+```env
+# Convex
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+CONVEX_DEPLOYMENT=dev:your-deployment-name
+VERTEX_CONVEX_INTERNAL_KEY=your-convex-deployment-key
+
+# Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+CLERK_JWT_ISSUER_DOMAIN=https://your-domain.clerk.accounts.dev
+
+# Google Gemini
+GOOGLE_GENERATIVE_AI_API_KEY=AIza...
+
+# Inngest
+INNGEST_DEV=1
+INNGEST_BASE_URL=http://localhost:8288
+INNGEST_EVENT_KEY=local
+
+# Firecrawl (optional)
+FIRECRAWL_API_KEY=fc-...
+
+# Sentry (optional)
+SENTRY_DSN=...
+SENTRY_AUTH_TOKEN=...
+```
+
+> **Getting `VERTEX_CONVEX_INTERNAL_KEY`:** Go to [dashboard.convex.dev](https://dashboard.convex.dev) → your project → Settings → Deployment Keys → copy a key.
+
+> **GitHub Import/Export:** Requires GitHub OAuth enabled in Clerk. Go to Clerk Dashboard → User & Authentication → Social Connections → enable GitHub → add the `repo` scope.
+
+### Running Locally
+
+You need three terminals running simultaneously:
+
+**Terminal 1 — Convex backend:**
+```bash
 npx convex dev
 ```
-fix the preview issue and custom new project name
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Terminal 2 — Inngest dev server:**
+```bash
+npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Terminal 3 — Next.js app:**
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+### Preview Feature
 
-To learn more about Next.js, take a look at the following resources:
+The live preview runs your project inside a [WebContainer](https://webcontainer.io/) sandbox in the browser. It works with any Node.js project that has a `package.json` and a `dev` script.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> **Note:** Turbopack (enabled by default in Next.js 16) is not supported inside WebContainer. If your preview fails to start, go to **Preview Settings** (gear icon in the preview toolbar) and set the Start Command to:
+> ```
+> npm run dev -- --no-turbo
+> ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+```
+src/
+├── app/                    # Next.js App Router pages and API routes
+│   └── api/
+│       ├── inngest/        # Inngest serve handler
+│       ├── messages/       # Chat message API
+│       ├── github/         # Import / export routes
+│       ├── quick-edit/     # AI inline edit API
+│       └── suggestion/     # AI autocomplete API
+├── features/
+│   ├── conversations/      # AI chat sidebar + Inngest functions + tools
+│   ├── editor/             # CodeMirror editor + extensions
+│   ├── preview/            # WebContainer preview + terminal
+│   └── projects/           # File explorer, project management, GitHub integration
+├── components/             # Shared UI components (shadcn/ui)
+├── inngest/                # Inngest client
+└── lib/                    # Gemini client, Convex client, utilities
+convex/                     # Convex schema, queries, mutations
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Convex
+```bash
+npx convex deploy
+```
+
+### Vercel
+```bash
+vercel deploy
+```
+
+Set all environment variables from `.env.local` in your Vercel project settings. Remove `INNGEST_DEV=1` in production and set a real `INNGEST_SIGNING_KEY` from your Inngest dashboard.
+
+## Known Limitations
+
+- WebContainer preview only works in Chromium-based browsers and Firefox 120+ (requires `SharedArrayBuffer`)
+- Preview does not support projects that rely on native Node.js bindings or file system access outside the sandbox
+- Gemini free tier has rate limits; if you hit quota errors, the app will display an error message and retry after the reset window
+
+## License
+
+MIT

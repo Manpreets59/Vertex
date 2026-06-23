@@ -47,7 +47,7 @@ export const TreeItemWrapper = ({
             }
           }}
           className={cn(
-            "group flex items-center gap-1 w-full h-5.5 hover:bg-accent/30 outline-none focus:ring-1 focus:ring-inset focus:ring-ring",
+            "group flex items-center gap-1 w-full h-5.5 hover:bg-accent/30 outline-none focus:ring-1 focus:ring-inset focus:ring-ring min-w-0",
             isActive && "bg-accent/30",
           )}
           style={{ paddingLeft: getItemPadding(level, item.type === "file") }}
@@ -76,23 +76,19 @@ export const TreeItemWrapper = ({
             <ContextMenuSeparator />
           </>
         )}
-         <ContextMenuItem 
+        <ContextMenuItem 
           onClick={onRename}
           className="text-sm"
         >
           Rename...
-          <ContextMenuShortcut>
-            Enter
-          </ContextMenuShortcut>
+          <ContextMenuShortcut>Enter</ContextMenuShortcut>
         </ContextMenuItem>
-         <ContextMenuItem 
+        <ContextMenuItem 
           onClick={onDelete}
           className="text-sm"
         >
           Delete Permanently
-          <ContextMenuShortcut>
-            ⌘Backspace
-          </ContextMenuShortcut>
+          <ContextMenuShortcut>⌘Backspace</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
