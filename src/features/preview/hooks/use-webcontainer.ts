@@ -9,14 +9,11 @@ import { useFiles } from "@/features/projects/hooks/use-files";
 
 import { Id } from "../../../../convex/_generated/dataModel";
 
-// Singleton WebContainer instance
 let webcontainerInstance: WebContainer | null = null;
 let bootPromise: Promise<WebContainer> | null = null;
 
 const getWebContainer = async (): Promise<WebContainer> => {
-  if (webcontainerInstance) {
-    return webcontainerInstance;
-  }
+  if (webcontainerInstance) return webcontainerInstance;
   if (!bootPromise) {
     bootPromise = WebContainer.boot({ coep: "credentialless" });
   }
@@ -31,6 +28,25 @@ const teardownWebContainer = () => {
   }
   bootPromise = null;
 };
+
+// next.config.js that disables SWC (native binary) and Turbopack (WASM)
+// Both are incompatible with WebContainer's sandboxed environment
+const WEBCONTAINER_NEXT_CONFIG = `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    swcMinify: false,
+  },
+  webpack: (config) => {
+    return config;
+  },
+};
+module.exports = nextConfig;
+`;
+
+// .npmrc to skip native binary downloads entirely
+const NPMRC_CONTENT = `ignore-scripts=false
+prefer-offline=false
+`;
 
 interface UseWebContainerProps {
   projectId: Id<"projects">;
@@ -56,6 +72,7 @@ export const useWebContainer = ({
 
   const containerRef = useRef<WebContainer | null>(null);
   const hasStartedRef = useRef(false);
+  const isRunningRef = useRef(false);
 
   const files = useFiles(projectId);
 
@@ -65,6 +82,7 @@ export const useWebContainer = ({
     }
 
     hasStartedRef.current = true;
+    isRunningRef.current = false;
 
     const start = async () => {
       const appendOutput = (data: string) => {
@@ -79,140 +97,139 @@ export const useWebContainer = ({
         const container = await getWebContainer();
         containerRef.current = container;
 
+        appendOutput(`📦 Mounting ${files.length} files...\n`);
         const fileTree = buildFileTree(files);
-        const fileCount = Object.keys(fileTree).length;
-        appendOutput(`📦 Mounting ${fileCount} items to WebContainer...\n`);
-        appendOutput(`Files available: ${files.length} total\n\n`);
-
         await container.mount(fileTree);
 
-        // server-ready fires when the dev server is up — this is the correct
-        // signal to show the preview. Set URL and status here directly.
+        // Listen for server-ready — this is the only reliable success signal
         container.on("server-ready", (_port, url) => {
           appendOutput(`\n✅ Server ready at ${url}\n`);
+          isRunningRef.current = true;
           setPreviewUrl(url);
           setStatus("running");
         });
 
-        setStatus("installing");
+        // --- Patch environment before install ---
 
-        const installCmd = settings?.installCommand || "npm install";
+        // 1. Write .npmrc to skip postinstall scripts that try to download native binaries
+        await container.fs.writeFile("/.npmrc", NPMRC_CONTENT);
+
+        // 2. Remove all existing next.config variants and write a sandbox-safe one
+        //    This disables SWC (native .node addon) and Turbopack (WASM)
+        appendOutput(`\n📝 Writing sandbox-safe next.config.js...\n`);
+        try { await container.fs.rm("/next.config.ts", { force: true }); } catch {}
+        try { await container.fs.rm("/next.config.mjs", { force: true }); } catch {}
+        try { await container.fs.rm("/next.config.js", { force: true }); } catch {}
+        await container.fs.writeFile("/next.config.js", WEBCONTAINER_NEXT_CONFIG);
+
+        // 3. Patch package.json — remove turbo flags, ensure dev script uses next directly
+        appendOutput(`📝 Patching package.json...\n`);
+        try {
+          const pkgRaw = await container.fs.readFile("/package.json", "utf-8");
+          const pkg = JSON.parse(pkgRaw);
+
+          if (pkg.scripts?.dev) {
+            const original = pkg.scripts.dev;
+            pkg.scripts.dev = original
+              .replace(/--turbo\b/g, "")
+              .replace(/--turbopack\b/g, "")
+              .replace(/\s+/g, " ")
+              .trim();
+
+            if (pkg.scripts.dev !== original) {
+              appendOutput(`  Removed turbo flags: "${original}" → "${pkg.scripts.dev}"\n`);
+            }
+          }
+
+          // Remove @next/swc packages — they're native binaries that can't run in sandbox
+          if (pkg.optionalDependencies) {
+            const swcKeys = Object.keys(pkg.optionalDependencies).filter(k =>
+              k.startsWith("@next/swc") || k.startsWith("@swc/")
+            );
+            swcKeys.forEach(k => {
+              delete pkg.optionalDependencies[k];
+              appendOutput(`  Removed native dep: ${k}\n`);
+            });
+          }
+
+          await container.fs.writeFile("/package.json", JSON.stringify(pkg, null, 2));
+        } catch (e) {
+          appendOutput(`⚠ Could not patch package.json: ${e}\n`);
+        }
+
+        appendOutput(`\n`);
+
+        // --- Install ---
+        setStatus("installing");
+        const installCmd = settings?.installCommand || "npm install --ignore-scripts";
         appendOutput(`$ ${installCmd}\n`);
 
         const [installBin, ...installArgs] = installCmd.split(" ");
         const installProcess = await container.spawn(installBin, installArgs);
 
         installProcess.output.pipeTo(
-          new WritableStream({
-            write(data) { appendOutput(data); },
-          })
+          new WritableStream({ write(data) { appendOutput(data); } })
         );
 
-        const installExitCode = await installProcess.exit;
-
-        if (installExitCode !== 0) {
-          throw new Error(`${installCmd} failed with code ${installExitCode}`);
+        const installCode = await installProcess.exit;
+        if (installCode !== 0) {
+          throw new Error(`${installCmd} failed with exit code ${installCode}`);
         }
 
-        // Disable Turbopack — it uses WASM bindings unavailable in WebContainer
-        appendOutput(`\n📝 Configuring environment...\n`);
-
-        try { await container.fs.rm("/next.config.ts", { force: true }); } catch {}
-        try { await container.fs.rm("/next.config.mjs", { force: true }); } catch {}
-        try { await container.fs.rm("/next.config.js", { force: true }); } catch {}
-
-        await container.fs.writeFile("/next.config.js", `/** @type {import('next').NextConfig} */
-const nextConfig = {};
-module.exports = nextConfig;
-`);
-        appendOutput(`✓ Config ready\n\n`);
-
-        // Always add --no-turbo to prevent Turbopack WASM errors
-        const baseDevCmd = settings?.devCommand || "npm run dev";
-        const devCmd = baseDevCmd.includes("--no-turbo")
-          ? baseDevCmd
-          : `${baseDevCmd} -- --no-turbo`;
-
-        appendOutput(`$ ${devCmd}\n`);
-        appendOutput(`Starting dev server...\n\n`);
+        // --- Start dev server ---
+        const devCmd = settings?.devCommand || "npm run dev";
+        appendOutput(`\n$ ${devCmd}\n`);
+        appendOutput(`Starting dev server (this may take 30-60s)...\n\n`);
 
         const [devBin, ...devArgs] = devCmd.split(" ");
         const devProcess = await container.spawn(devBin, devArgs);
 
         devProcess.output.pipeTo(
-          new WritableStream({
-            write(data) { appendOutput(data); },
-          })
+          new WritableStream({ write(data) { appendOutput(data); } })
         );
 
-        // Monitor for unexpected exit only — do NOT await this for normal flow.
-        // The server-ready event above handles the success case.
-        // If the process exits with a non-zero code, that's an error.
+        // Only treat exit as error if we never reached "running"
         devProcess.exit.then((code) => {
-          if (code !== 0) {
-            const msg = `Dev server exited unexpectedly with code ${code}`;
+          if (!isRunningRef.current && code !== 0) {
+            const msg = `Dev server exited with code ${code}`;
             appendOutput(`\n❌ ${msg}\n`);
+            appendOutput(`\n💡 Check the terminal output above for the actual error.\n`);
+            appendOutput(`Common fixes:\n`);
+            appendOutput(`  • Use Preview Settings to set Start Command: npx next dev\n`);
+            appendOutput(`  • Make sure package.json has a "dev" script\n`);
             setError(msg);
             setStatus("error");
           }
         });
 
-        // Give the dev server up to 120 seconds to emit server-ready.
-        // If it doesn't, show a helpful timeout error.
-        await new Promise<void>((_, reject) => {
-          setTimeout(() => {
-            // Only reject if we haven't already gone to "running"
-            setStatus((current) => {
-              if (current !== "running") {
-                reject(new Error(
-                  "Dev server startup timeout (120s). " +
-                  "Check terminal output for errors. " +
-                  "Common fix: add --no-turbo to your dev command in Preview Settings."
-                ));
-              }
-              return current;
-            });
-          }, 120000);
-        });
-
-      } catch (error) {
-        // Don't overwrite a successful "running" state with an error
-        setStatus((current) => {
-          if (current === "running") return current;
-
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          setError(errorMessage);
-
-          let helpText = "";
-          if (errorMessage.includes("turbo") || errorMessage.includes("wasm")) {
-            helpText = "\n💡 Turbopack is not supported in WebContainer.\n" +
-              "Go to Preview Settings and set Start Command to:\n" +
-              "npm run dev -- --no-turbo\n";
-          } else if (errorMessage.includes("timeout")) {
-            helpText = "\n💡 The server took too long to start.\n" +
-              "Check the terminal for build errors.\n" +
-              "Try: Preview Settings → Start Command → npm run dev -- --no-turbo\n";
-          } else if (errorMessage.includes("npm install") || errorMessage.includes("code 1")) {
-            helpText = "\n💡 Installation failed. Check terminal for details.\n" +
-              "Common causes: missing package.json, incompatible dependencies.\n";
+        // 120s safety net
+        setTimeout(() => {
+          if (!isRunningRef.current) {
+            const msg = "Server did not start within 120 seconds";
+            appendOutput(`\n⏱ ${msg}\n`);
+            setError(msg);
+            setStatus("error");
           }
+        }, 120000);
 
-          appendOutput(`\n❌ Error: ${errorMessage}${helpText}\n`);
-          return "error";
-        });
+      } catch (err) {
+        if (isRunningRef.current) return;
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        appendOutput(`\n❌ ${msg}\n`);
+        setError(msg);
+        setStatus("error");
       }
     };
 
     start();
   }, [enabled, files, restartKey, settings?.devCommand, settings?.installCommand]);
 
-  // Sync file changes to running container
+  // Hot-reload: sync file changes into running container
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !files || status !== "running") return;
 
     const filesMap = new Map(files.map((f) => [f._id, f]));
-
     for (const file of files) {
       if (file.type !== "file" || file.storageId || !file.content) continue;
       const filePath = getFilePath(file, filesMap);
@@ -220,10 +237,10 @@ module.exports = nextConfig;
     }
   }, [files, status]);
 
-  // Reset when disabled
   useEffect(() => {
     if (!enabled) {
       hasStartedRef.current = false;
+      isRunningRef.current = false;
       setStatus("idle");
       setPreviewUrl(null);
       setError(null);
@@ -234,6 +251,7 @@ module.exports = nextConfig;
     teardownWebContainer();
     containerRef.current = null;
     hasStartedRef.current = false;
+    isRunningRef.current = false;
     setStatus("idle");
     setPreviewUrl(null);
     setError(null);

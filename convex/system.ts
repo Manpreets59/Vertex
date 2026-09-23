@@ -617,7 +617,10 @@ export const createProjectWithConversation = mutation({
       name: args.projectName,
       ownerId: args.ownerId,
       updatedAt: Date.now(),
-      importStatus: "importing",
+      // No importStatus here — this is a blank AI-prompted project,
+      // not a GitHub import. Setting "importing" here caused the
+      // spinner to be stuck forever since only import-github-repo.ts
+      // ever clears that status.
     });
 
     const conversationId = await ctx.db.insert("conversations", {
