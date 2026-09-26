@@ -130,7 +130,7 @@ const GlassPanel = ({ children, className = "", style = {} }: { children: React.
 );
 
 // ── Primary button ───────────────────────────────────────────────────────────
-const PrimaryBtn = ({ children }: { children: React.ReactNode }) => {
+const PrimaryBtn = ({ children, onClick, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
   const ref = useRef<HTMLButtonElement>(null);
   return (
     <button ref={ref}
@@ -138,13 +138,15 @@ const PrimaryBtn = ({ children }: { children: React.ReactNode }) => {
       style={{ background: `linear-gradient(135deg, ${ORANGE} 0%, ${ORANGE_2} 100%)`, color: "#1a0e08", transition: `transform 0.3s ${EASE}, box-shadow 0.3s ${EASE}` }}
       onMouseEnter={() => { if (ref.current) { ref.current.style.transform = "scale(1.03) translateY(-2px)"; ref.current.style.boxShadow = `0 12px 32px rgba(255,120,73,0.4)`; } }}
       onMouseLeave={() => { if (ref.current) { ref.current.style.transform = ""; ref.current.style.boxShadow = ""; } }}
+      onClick={onClick}
+      {...rest}
     >
       {children}
     </button>
   );
 };
 
-const SecondaryBtn = ({ children }: { children: React.ReactNode }) => {
+const SecondaryBtn = ({ children, onClick, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
   const ref = useRef<HTMLButtonElement>(null);
   return (
     <button ref={ref}
@@ -152,6 +154,8 @@ const SecondaryBtn = ({ children }: { children: React.ReactNode }) => {
       style={{ borderColor: BORDER, color: TEXT, transition: `all 0.3s ${EASE}` }}
       onMouseEnter={() => { if (ref.current) { ref.current.style.borderColor = "#3f3f4a"; ref.current.style.background = "rgba(255,255,255,0.03)"; } }}
       onMouseLeave={() => { if (ref.current) { ref.current.style.borderColor = BORDER; ref.current.style.background = "transparent"; } }}
+      onClick={onClick}
+      {...rest}
     >
       {children}
     </button>
@@ -187,13 +191,13 @@ export const LandingPage = () => {
           </a>
         </div>
         <div className="flex items-center gap-3">
-          <SignInButton mode="modal">
+          <SignInButton mode="modal" forceRedirectUrl="/">
             <button className="text-sm px-4 py-1.5 transition-colors" style={{ color: MUTED }}
               onMouseEnter={e => (e.currentTarget.style.color = TEXT)} onMouseLeave={e => (e.currentTarget.style.color = MUTED)}>
               Sign in
             </button>
           </SignInButton>
-          <SignUpButton mode="modal"><PrimaryBtn>Start Building Free</PrimaryBtn></SignUpButton>
+          <SignUpButton mode="modal" forceRedirectUrl="/"><PrimaryBtn>Start Building Free</PrimaryBtn></SignUpButton>
         </div>
       </nav>
 
@@ -219,7 +223,7 @@ export const LandingPage = () => {
           </p>
 
           <div className="flex items-center justify-center gap-3 mt-10 mb-6">
-            <SignUpButton mode="modal"><PrimaryBtn>Start Building Free <ArrowRightIcon className="size-4" /></PrimaryBtn></SignUpButton>
+            <SignUpButton mode="modal" forceRedirectUrl="/"><PrimaryBtn>Start Building Free <ArrowRightIcon className="size-4" /></PrimaryBtn></SignUpButton>
             <a href="https://github.com/Manpreets59/Vertex" target="_blank" rel="noopener">
               <SecondaryBtn><FaGithub className="size-4" /> View on GitHub</SecondaryBtn>
             </a>
@@ -418,7 +422,7 @@ export const LandingPage = () => {
           <RocketIcon className="size-10 mx-auto mb-6 relative z-10" style={{ color: ORANGE }} />
           <h2 className="sg text-3xl md:text-4xl font-bold mb-4 relative z-10">Ready to build?</h2>
           <p className="mb-8 relative z-10" style={{ color: MUTED, fontWeight: 300 }}>Import a repo or start from scratch. Your AI coding agent is waiting.</p>
-          <div className="relative z-10"><SignUpButton mode="modal"><PrimaryBtn>Start Building Free <ArrowRightIcon className="size-4" /></PrimaryBtn></SignUpButton></div>
+          <div className="relative z-10"><SignUpButton mode="modal" forceRedirectUrl="/"><PrimaryBtn>Start Building Free <ArrowRightIcon className="size-4" /></PrimaryBtn></SignUpButton></div>
         </div>
       </section>
 
@@ -435,7 +439,7 @@ export const LandingPage = () => {
             <span className="hover:text-white transition-colors cursor-pointer">Docs</span>
             <a href="https://github.com/Manpreets59/Vertex" target="_blank" rel="noopener" className="hover:text-white transition-colors">GitHub</a>
             <span className="hover:text-white transition-colors cursor-pointer">Discord</span>
-            <span className="hover:text-white transition-colors cursor-pointer">Twitter</span>
+            <a href="https://x.com/manpreets95828" target="_blank" rel="noopener" className="hover:text-white transition-colors">Twitter</a>
           </div>
         </div>
       </footer>

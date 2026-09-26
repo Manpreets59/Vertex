@@ -6,10 +6,13 @@ import { useState } from "react";
 
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
 
 import { Doc } from "../../../../convex/_generated/dataModel";
 import { useProjectsPartial } from "../hooks/use-projects";
+
+const BORDER = "#252530";
+const CARD = "#14141B";
+const EASE = "cubic-bezier(0.16,1,0.3,1)";
 
 const formatTimestamp = (timestamp: number) => {
   return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
@@ -39,24 +42,24 @@ const ContinueCard = ({ data }: { data: Doc<"projects"> }) => {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-xs text-muted-foreground">Last updated</span>
-      <Button
-        variant="outline"
-        asChild
-        className="h-auto items-start justify-start p-4 bg-[#161826] border-white/8 hover:border-[#6562f4]/40 hover:bg-[#1a1c30] rounded-xl flex flex-col gap-2 transition-all"
+      <Link
+        href={`/projects/${data._id}`}
+        className="group flex flex-col gap-2 p-4 rounded-xl border transition-all"
+        style={{ background: CARD, borderColor: BORDER, transition: `transform 0.3s ${EASE}, border-color 0.3s ${EASE}` }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = "rgba(255,120,73,0.35)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.borderColor = BORDER; }}
       >
-        <Link href={`/projects/${data._id}`} className="group">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-              {getProjectIcon(data)}
-              <span className="font-medium truncate">{data.name}</span>
-            </div>
-            <ArrowRightIcon className="size-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2 min-w-0">
+            {getProjectIcon(data)}
+            <span className="font-medium truncate">{data.name}</span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {formatTimestamp(data.updatedAt)}
-          </span>
-        </Link>
-      </Button>
+          <ArrowRightIcon className="size-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {formatTimestamp(data.updatedAt)}
+        </span>
+      </Link>
     </div>
   );
 };
@@ -81,10 +84,10 @@ const ProjectItem = ({ data }: { data: Doc<"projects"> }) => {
   };
 
   return (
-    <div className="flex items-center justify-between w-full group py-1 px-2 rounded-lg hover:bg-accent/50 transition-colors">
+    <div className="flex items-center justify-between w-full group px-4 py-3 hover:bg-white/[0.02] transition-colors">
       <Link
         href={`/projects/${data._id}`}
-        className="text-sm text-foreground/60 font-medium hover:text-foreground flex items-center gap-2 flex-1 min-w-0"
+        className="text-sm text-foreground/70 font-medium hover:text-foreground flex items-center gap-2 flex-1 min-w-0"
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {getProjectIcon(data)}
@@ -97,7 +100,7 @@ const ProjectItem = ({ data }: { data: Doc<"projects"> }) => {
       <button
         onClick={handleDelete}
         disabled={isDeleting}
-        className="ml-2 p-1.5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+        className="ml-3 p-1.5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
       >
         {isDeleting ? <Loader2Icon className="size-4 animate-spin" /> : <TrashIcon className="size-4" />}
       </button>
@@ -109,6 +112,8 @@ export const ProjectsList = ({ onViewAll }: ProjectsListProps) => {
   const projects = useProjectsPartial(6);
 
   if (projects === undefined) return <Spinner className="size-4 text-ring" />;
+
+  if (projects.length === 0) return null;
 
   const [mostRecent, ...rest] = projects;
 
@@ -127,11 +132,11 @@ export const ProjectsList = ({ onViewAll }: ProjectsListProps) => {
               <Kbd className="bg-accent border">⌘K</Kbd>
             </button>
           </div>
-          <ul className="flex flex-col">
+          <div className="rounded-xl border divide-y overflow-hidden" style={{ borderColor: BORDER }}>
             {rest.map((project) => (
               <ProjectItem key={project._id} data={project} />
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </div>

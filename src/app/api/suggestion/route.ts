@@ -72,6 +72,9 @@ export async function POST(request: Request) {
       .replace("{lineNumber}", lineNumber.toString());
 
     const suggestion = await createGeminiMessage({
+      // Ghost-text autocomplete needs to feel instant more than it needs
+      // deep reasoning — flash-lite is faster/cheaper and still free tier.
+      model: process.env.GEMINI_AUTOCOMPLETE_MODEL || "gemini-2.5-flash-lite",
       max_tokens: 100,
       messages: [
         {

@@ -107,6 +107,7 @@ export const processMessage = inngest.createFunction(
       await step.run("generate-and-update-title", async () => {
         try {
           const title = await createGeminiMessage({
+            model: process.env.GEMINI_AUTOCOMPLETE_MODEL || "gemini-2.5-flash-lite",
             max_tokens: 50,
             system: TITLE_GENERATOR_SYSTEM_PROMPT,
             messages: [{ role: "user", content: message }],

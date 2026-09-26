@@ -1,7 +1,24 @@
 /**
  * Google Gemini API client
  * Free tier with no credit limits
+ *
+ * NOTE ON MODEL NAMES: Google deprecates and shuts down Gemini model IDs
+ * fairly frequently (gemini-2.0-flash was shut down June 1, 2026). Rather
+ * than hardcoding a model name, this file resolves it in order of:
+ *   1. an explicit `model` passed by the caller
+ *   2. the GEMINI_MODEL environment variable
+ *   3. DEFAULT_MODEL below
+ * When Google deprecates the current default, update DEFAULT_MODEL (or set
+ * GEMINI_MODEL in your .env.local) — check https://ai.google.dev/gemini-api/docs/models
+ * for the current free-tier model list before picking a replacement, since
+ * not every "latest" model Google points you to is actually free.
  */
+
+// gemini-2.5-flash is confirmed free-tier as of writing. Swap this (or set
+// GEMINI_MODEL) if Google deprecates it — do not blindly follow whatever
+// model name shows up in a 404 error message, some suggested replacements
+// are paid-only.
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 interface Content {
   role: "user" | "model";
@@ -24,6 +41,8 @@ export const createGeminiMessage = async (
   if (!apiKey) {
     throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set");
   }
+
+  const model = params.model || process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
   // Build contents array
   const contents: Content[] = [];
@@ -48,7 +67,7 @@ export const createGeminiMessage = async (
     });
   }
 
-  console.log(`[Gemini] Calling with model: gemini-2.0-flash, messages: ${params.messages.length}`);
+  console.log(`[Gemini] Calling with model: ${model}, messages: ${params.messages.length}`);
 
   const requestBody = {
     contents: contents,
@@ -62,7 +81,7 @@ export const createGeminiMessage = async (
   console.log(`[Gemini] API Key present: ${apiKey.substring(0, 10)}...`);
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: {
@@ -81,8 +100,11 @@ export const createGeminiMessage = async (
     try {
       const errorData = JSON.parse(responseText);
       if (errorData.error) {
+        const hint = response.status === 404
+          ? ` — model "${model}" may be deprecated/renamed. Check https://ai.google.dev/gemini-api/docs/models for a current free-tier model and set GEMINI_MODEL in .env.local.`
+          : "";
         throw new Error(
-          `Gemini API error (${response.status}): ${errorData.error.message || JSON.stringify(errorData.error)}`
+          `Gemini API error (${response.status}): ${errorData.error.message || JSON.stringify(errorData.error)}${hint}`
         );
       }
     } catch (e) {
